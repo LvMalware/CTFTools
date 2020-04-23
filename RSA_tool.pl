@@ -33,7 +33,7 @@ sub factordb_query
         my $p_ = $1;
         $query_q =~ /<td align="center">(\d+)<br>/;
         my $q_ = $1;
-        return ($p_, $q_);
+        return ($p_ + 0, $q_ + 0);
     }
     (undef, undef)
 }
@@ -81,12 +81,12 @@ sub main
         "dec"      => \$decrypt,
         "enc"      => \$encrypt,
         "msg=s"    => \$message,
-        "p|P=i"    => \$p,
-        "q|Q=i"    => \$q,
-        "e|E=i"    => \$e,
-        "n|N=i"    => \$n,
-        "d|D=i"    => \$d,
-        "c|C=i"    => \$c,
+        "p|P=s"    => \$p,
+        "q|Q=s"    => \$q,
+        "e|E=s"    => \$e,
+        "n|N=s"    => \$n,
+        "d|D=s"    => \$d,
+        "c|C=s"    => \$c,
     );
 
     if ($factor)
