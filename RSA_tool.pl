@@ -11,7 +11,6 @@ use ntheory qw(invmod powmod);
 
 use constant FACTOR_DB => "http://factordb.com/";
 
-my $silent = 0;
 my ($p, $q, $e, $n, $d, $c);
 my ($factor, $encrypt, $decrypt, $message);
 
@@ -41,15 +40,44 @@ sub factordb_query
 
 sub help
 {
+    print <<HELP;
 
+RSA Tool - RSA implementation for CTF competitions
+
+Usage: $0 [options]
+
+Options:
+
+    -h, --help              Show this help message and exit
+    -f, --factor            Search the factors for N on factordb
+    -dec                    Decrypt a ciphertext
+    -enc                    Encrypt a message
+    -msg M                  Plain text message to encrypt
+    -p                      P factor
+    -q                      Q factor
+    -e                      Exponent E of the public key
+    -n                      Modulus N of the public/private key
+    -d                      Exponent D of the private key
+    -c                      Ciphertext to decrypt
+
+Author:
+
+    Lucas V. Araujo <lucas.vieira.ar\@disroot.org>
+    GitHub: https://github.com/LvMalware
+
+HELP
+
+    exit;
 }
 
 sub main
 {
+    
+    help() unless @ARGV > 0;
+
     GetOptions(
         "h|help"   => \&help,
         "f|factor" => \$factor,
-        "s|silent" => \$silent,
         "dec"      => \$decrypt,
         "enc"      => \$encrypt,
         "msg=s"    => \$message,
@@ -79,7 +107,7 @@ sub main
         }
         else
         {
-            print "Can't find the factors of this number on factordb\n";
+            print "[!] Can't find the factors of this number on factordb\n";
             exit;
         }
     }
