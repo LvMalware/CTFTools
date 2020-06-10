@@ -7,12 +7,9 @@ use HTTP::Tiny;
 use Math::BigInt;
 use Getopt::Long;
 use Math::Prime::Util;
-use ntheory qw(invmod powmod);
+use ntheory qw(invmod powmod lcm gcd);
 
 use constant FACTOR_DB => "http://factordb.com/";
-
-my ($p, $q, $e, $n, $d, $c);
-my ($factor, $encrypt, $decrypt, $message);
 
 sub http_request
 {
@@ -30,10 +27,10 @@ sub factordb_query
         my $query_p = http_request(FACTOR_DB . "index.php?showid=$1");
         my $query_q = http_request(FACTOR_DB . "index.php?showid=$2");
         $query_p =~ /<td align="center">(\d+)<br>/;
-        my $p_ = $1;
+        my $p_ = Math::BigInt->new($1);
         $query_q =~ /<td align="center">(\d+)<br>/;
-        my $q_ = $1;
-        return ($p_ + 0, $q_ + 0);
+        my $q_ = Math::BigInt->new($1);
+        return ($p_, $q_);
     }
     (undef, undef)
 }
@@ -42,17 +39,19 @@ sub help
 {
     print <<HELP;
 
-RSA Tool - RSA implementation for CTF competitions
+RSA Tool - RSA attack tool for CTF competitions
 
 Usage: $0 [options]
 
 Options:
 
     -h, --help              Show this help message and exit
-    -f, --factor            Search the factors for N on factordb
+    -a, --attack Attacks    Attacks to be performed (See 'Attacks' below)
+    -g, --new               Generate a new RSA keypair
+    -s, --keysize           The size of the keys (See 'Key Size' below)
     -dec                    Decrypt a ciphertext
     -enc                    Encrypt a message
-    -msg M                  Plain text message to encrypt
+    -msg message            Plain text message to encrypt
     -p                      P factor
     -q                      Q factor
     -e                      Exponent E of the public key
@@ -60,6 +59,22 @@ Options:
     -d                      Exponent D of the private key
     -c                      Ciphertext to decrypt
 
+Key Size:
+
+    Specify the size (in bits) of the RSA keys to be generated.
+    The standart sizes are: 1024, 2048 and 4096. Default is 2048.
+    (Even though, you could use any unsigned non-null value)
+
+Attacks:
+    You can specify more than one attack method using a colon (without spaces)
+    after each method.
+
+    all      - Try all the avaiable methods of attack (default).
+    factordb - Search N at factordb.com (has a relatively high rate of
+               success for small values of N).
+    wiener   - Wiener's attack, uses the continued fraction method to expose
+               the private key d when d is small enough.
+    (Other methods of attack will be added soon)
 Author:
 
     Lucas V. Araujo <lucas.vieira.ar\@disroot.org>
@@ -70,68 +85,121 @@ HELP
     exit;
 }
 
+sub wiener
+{
+
+}
+
+sub all_attacks
+{
+
+}
+
+
 sub main
 {
-    
     help() unless @ARGV > 0;
 
-    GetOptions(
-        "h|help"   => \&help,
-        "f|factor" => \$factor,
-        "dec"      => \$decrypt,
-        "enc"      => \$encrypt,
-        "msg=s"    => \$message,
-        "p|P=s"    => \$p,
-        "q|Q=s"    => \$q,
-        "e|E=s"    => \$e,
-        "n|N=s"    => \$n,
-        "d|D=s"    => \$d,
-        "c|C=s"    => \$c,
-    );
+    my ($p, $q, $e, $n, $d, $c);
+    my ($attack, $encrypt, $decrypt, $message, $new, $keysize);
 
-    if ($factor)
+    GetOptions(
+        "g|new"       => \$new,
+        "h|help"      => \&help,
+        "a|attack=s"  => \$attack,
+        "s|keysize=i" => \$keysize,
+        "msg=s"       => \$message,
+        "dec"         => \$decrypt,
+        "enc"         => \$encrypt,
+        "p=s"         => \$p,
+        "q=s"         => \$q,
+        "e=s"         => \$e,
+        "n=s"         => \$n,
+        "d=s"         => \$d,
+        "c=s"         => \$c,
+    );
+    
+    $p = Math::BigInt->new($p) if $p;
+    $q = Math::BigInt->new($q) if $q;
+    $n = Math::BigInt->new($n) if $n;
+    $e = Math::BigInt->new($e) if $e;
+    $d = Math::BigInt->new($d) if $d;
+    $c = Math::BigInt->new($c) if $c;
+    
+    if ($new)
     {
-        die "No N specified" unless ($n);
+        $keysize = 2048 unless defined $keysize;
+        print "[+] Generating a RSA keypair of $keysize bits...\n";
+        $p = Math::Prime::Util::random_strong_prime($keysize / 2);
+        $q = Math::Prime::Util::random_strong_prime($keysize / 2);
+        $n = $p * $q;
+        my $totient = lcm($p - 1, $q - 1);
+        $e = 2;
+        $e ++ while gcd($totient, $e) != 1;
+        $d = invmod($e, ($p - 1) * ($q - 1));
+        print "[+] P = $p\n";
+        print "[+] Q = $q\n";
         print "[+] N = $n\n";
-        ($p, $q) = factordb_query($n+0);
-        if ($p and $q)
-        {
-            print "[+] P = $p\n";
-            print "[+] Q = $q\n";
-            if ($e)
-            {
-                print "[+] e = $e\n";
-                $d = invmod($e, ($p - 1) * ($q - 1));
-                print "[+] d = $d\n";
-            }
-        }
-        else
-        {
-            print "[!] Can't find the factors of this number on factordb\n";
-            exit;
-        }
+        print "[+] E = $e\n";
+        print "[+] D = $d\n";
+        exit unless $encrypt;
     }
 
     if ($encrypt)
     {
-        die "No message to encrypt" unless $message;
+        if ($p and $q)
+        {
+            print "[+] P = $p\n" unless $new;
+            print "[+] Q = $q\n" unless $new;
+            $n = $p * $q;
+        }
+        die "[!] No value for N" unless defined($n);
+        die "[!] No value for E" unless defined($e);
+        die "[!] Nothing to encrypt" unless defined($message);
+        print "[+] N = $n\n" unless $new;
         my $m = Math::BigInt->from_bytes($message);
-        die "No e specified" unless $e;
-        $n = $p * $q if ($p and $q);
-        die "No N specified" unless $n;
         $c = powmod($m, $e, $n);
-        print "C =\n$c\n";
+        print "[+] C = $c\n";
+        exit unless $attack;
     }
 
+    if ($attack)
+    {
+        my @methods = split /,/, $attack;
+        if (grep /all/, @methods)
+        {
+            ($p, $q) = all_attacks();
+        }
+        else
+        {
+            for my $atk (@methods)
+            {
+                print "[+] Trying attack: $atk\n";
+                if ($atk eq 'factordb')
+                {
+                    ($p, $q) = factordb_query($n)
+                }
+                #elsif (...) ...
+                last if ($p and $q);
+            }
+        }
+        die "[!] Can't find P and Q" unless ($p and $q);
+        print "[+] P = $p\n";
+        print "[+] Q = $q\n";
+    }
+    
     if ($decrypt)
     {
-        die "No ciphertext to decrypt" unless $c;
-        die "No d specified" unless $d;
-        $n = $p * $q if ($p and $q);
-        die "No N specified" unless $n;
-        my $m = powmod($c, $d, $n);
-        $message = Math::BigInt->new($m)->to_bytes();
-        print "MESSAGE:\n$message\n";
+        die "[!] No value for N" unless defined ($n);
+        die "[!] Nothing to decrypt" unless defined($c);
+        if ($p and $q)
+        {
+            die "[!] No value for E" unless defined($e);
+            $d = invmod($e, ($p - 1) * ($q - 1));
+        }
+        die "[!] No value for D" unless defined($d);
+        $message = Math::BigInt->new(powmod($c, $d, $n))->to_bytes();
+        print "[+] Message:\n'$message'\n";
     }
 }
 
