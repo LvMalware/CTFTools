@@ -10,29 +10,6 @@ use ntheory qw(invmod powmod lcm gcd);
 
 use constant FACTOR_DB => "http://factordb.com/";
 
-sub http_request
-{
-    my ($url) = @_;
-    my $resp = HTTP::Tiny->new()->get($url);
-    $resp->{success} ? $resp->{content} : '';
-}
-
-sub factordb_query
-{
-    my ($n_) = @_;
-    my $resp = http_request(FACTOR_DB . "index.php?query=$n_");
-    if ($resp =~ /= <a href="index.php\?id=(\d+)".*<a href="index.php\?id=(\d+)/)
-    {
-        my $query_p = http_request(FACTOR_DB . "index.php?showid=$1");
-        my $query_q = http_request(FACTOR_DB . "index.php?showid=$2");
-        $query_p =~ /<td align="center">(\d+)<br>/;
-        my $p_ = Math::BigInt->new($1);
-        $query_q =~ /<td align="center">(\d+)<br>/;
-        my $q_ = Math::BigInt->new($1);
-        return ($p_, $q_);
-    }
-    (undef, undef)
-}
 
 sub help
 {
@@ -84,6 +61,31 @@ HELP
     exit;
 }
 
+sub http_request
+{
+    my ($url) = @_;
+    my $resp = HTTP::Tiny->new()->get($url);
+    $resp->{success} ? $resp->{content} : '';
+}
+
+sub factordb_query
+{
+    my ($n_) = @_;
+    my $resp = http_request(FACTOR_DB . "index.php?query=$n_");
+    if ($resp =~ /= <a href="index.php\?id=(\d+)".*<a href="index.php\?id=(\d+)/)
+    {
+        my $query_p = http_request(FACTOR_DB . "index.php?showid=$1");
+        my $query_q = http_request(FACTOR_DB . "index.php?showid=$2");
+        $query_p =~ /<td align="center">(\d+)<br>/;
+        my $p_ = Math::BigInt->new($1);
+        $query_q =~ /<td align="center">(\d+)<br>/;
+        my $q_ = Math::BigInt->new($1);
+        return ($p_, $q_);
+    }
+    (undef, undef)
+}
+
+
 sub wiener
 {
     #It seems to work!!!
@@ -108,13 +110,6 @@ sub wiener
     
     undef;
 }
-
-sub all_attacks
-{
-    
-    (undef, undef)
-}
-
 
 sub main
 {
@@ -177,6 +172,7 @@ sub main
         die "[!] No value for E" unless defined($e);
         die "[!] Nothing to encrypt" unless defined($message);
         print "[+] N = $n\n" unless $new;
+        print "[+] Encrypting message...\n";
         my $m = Math::BigInt->from_bytes($message);
         $c = powmod($m, $e, $n);
         print "[+] C = $c\n";
@@ -188,35 +184,32 @@ sub main
         my @methods = split /,/, $attack;
         if (grep /all/, @methods)
         {
-            ($p, $q) = all_attacks();
+            @methods = qw/factordb wiener/;
         }
-        else
+        for my $atk (@methods)
         {
-            for my $atk (@methods)
+            print "[+] Trying attack: $atk\n";
+            if ($atk eq 'factordb')
             {
-                print "[+] Trying attack: $atk\n";
-                if ($atk eq 'factordb')
-                {
-                    ($p, $q) = factordb_query($n)
-                }
-                elsif ($atk eq 'wiener')
-                {
-                    $d = wiener($e, $n);
-                }
-                #elsif ($atk eq '?')
-                #{
-                #    ...
-                #}
-                else
-                {
-                    print "[-] Unknown attack method: $atk\n";
-                }
-                last if ($p and $q) or $d;
+                ($p, $q) = factordb_query($n)
             }
+            elsif ($atk eq 'wiener')
+            {
+                $d = wiener($e, $n);
+            }
+            #elsif ($atk eq '?')
+            #{
+            #    ...
+            #}
+            else
+            {
+                print "[-] Unknown attack method: $atk\n";
+            }
+            last if ($p and $q) or $d;
         }
         unless ($d)
         {
-            die "[!] Can't find P and Q" unless ($p and $q);
+            die "[!] Can't find P or Q" unless ($p and $q);
             print "[+] P = $p\n";
             print "[+] Q = $q\n";
         }
