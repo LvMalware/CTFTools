@@ -1,7 +1,6 @@
 #!/usr/bin/env perl
 
 use strict;
-use bigint;
 use warnings;
 use HTTP::Tiny;
 use Math::BigInt;
@@ -73,7 +72,7 @@ Attacks:
     factordb - Search N at factordb.com (has a relatively high rate of
                success for small values of N).
     wiener   - Wiener's attack, uses the continued fraction method to expose
-               the private key d when d is small enough.
+               the private key d when d is small enough (d < 1/3 * sqrt(n)).
     (Other methods of attack will be added soon)
 Author:
 
@@ -87,12 +86,33 @@ HELP
 
 sub wiener
 {
-
+    #It seems to work!!!
+    my ($e, $n) = @_;
+    my ($k, $x) = ($e, $n);
+    my $c = powmod(65, $e, $n); #Encrypted 'A'
+    my $d = 0;
+    while ($d % 2 or ($e * $d - 1) % $k)
+    {
+        $d += int($k / $x); #continued fractions
+        if (powmod($c, $d, $n) == 65) #Decrypted!
+        {
+            return $d;
+        }
+        my $r = $k % $x;
+        if ($r > 0)
+        {
+            ($k, $x) = ($x, $r)
+        }
+        last if ($x == 1);
+    }
+    
+    undef;
 }
 
 sub all_attacks
 {
-
+    
+    (undef, undef)
 }
 
 
@@ -179,13 +199,31 @@ sub main
                 {
                     ($p, $q) = factordb_query($n)
                 }
-                #elsif (...) ...
-                last if ($p and $q);
+                elsif ($atk eq 'wiener')
+                {
+                    $d = wiener($e, $n);
+                }
+                #elsif ($atk eq '?')
+                #{
+                #    ...
+                #}
+                else
+                {
+                    print "[-] Unknown attack method: $atk\n";
+                }
+                last if ($p and $q) or $d;
             }
         }
-        die "[!] Can't find P and Q" unless ($p and $q);
-        print "[+] P = $p\n";
-        print "[+] Q = $q\n";
+        unless ($d)
+        {
+            die "[!] Can't find P and Q" unless ($p and $q);
+            print "[+] P = $p\n";
+            print "[+] Q = $q\n";
+        }
+        else
+        {
+            print "[+] D = $d\n";
+        }
     }
     
     if ($decrypt)
@@ -195,7 +233,7 @@ sub main
         if ($p and $q)
         {
             die "[!] No value for E" unless defined($e);
-            $d = invmod($e, ($p - 1) * ($q - 1));
+            $d = invmod($e, ($p - 1) * ($q - 1)) unless $d;
         }
         die "[!] No value for D" unless defined($d);
         $message = Math::BigInt->new(powmod($c, $d, $n))->to_bytes();
