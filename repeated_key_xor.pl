@@ -81,7 +81,7 @@ sub get_key_byte
 sub decrypt
 {
     my ($input, $key)  = @_;
-    my ($i, $j) = (0,0);
+    my ($i, $j) = (0, 0);
     my $output  = "";
     while (length($output) < length($input))
     {
@@ -174,7 +174,7 @@ sub main
 
     if ($input_file)
     {
-        open(my $input, "< :encoding(UTF-8)", $input_file) ||
+        open(my $input, "<", $input_file) ||
             die "Can't open $input_file for reading: $!";
         if ($multi_line)
         {
@@ -199,6 +199,7 @@ sub main
         my %key_score;
         for my $len (@key_sizes)
         {
+            next unless $len;
             my ($key, $plain) = break_xor($encrypted, $len);
             if ($print_best)
             {
